@@ -10,7 +10,7 @@ vim -b mstore.o  打开文件
 objdump -d mstore.o
 
 -o:生成可执行文件
-gcc -Og -c prog main.c mstore.c
+gcc -Og -o prog main.c mstore.c
 prog:不仅包含了两个文件代码，还包含了用来启动和终止程序的代码，以及用来和操作系统交互的代码。
 objdump -d prog
 反编译prog中multstore的反编译代码与mstore.o的反编译代码基本一直，主要区别：
