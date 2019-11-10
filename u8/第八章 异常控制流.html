@@ -272,7 +272,252 @@
 					如果环境数组包含一个形如"name=oldvalue"的字符串，那么unsetenv会删除它，而setenv会用newvalue代替oldvalue，但是只有在overwirte非零时才会这样。如果name不存在，那么setenv就把"name=newvalue"添加到数组中。<br />
 				</div>
 			</div>
+			<div>作业2--------------------------------------------------------------------------------------------</div>
+			<h2>信号</h2>
+			<div>
+				Linux信号，它允许进程和内核中断其他进程。一个信号就是一条小消息，它通知进程系统中发生了一个某种类型的事件。每种信号类型都对应于某种系统事件。低层的硬件异常是由内核异常处理程序处理的，正常情况下，对用户进程而言是
+				不可见的。信号提供了一种机制，通知用户进程发生了这些异常。比如:<br />
+				如果一个进程试图除以0那么内核就发送给它一个SIGFPE信号;<br />
+				如果一个进程执行一条非法指令，那么内核就发送给它一个SIGILL信号;<br />
+				如果进程进行非法内存引用，内核就发送给它一个SIGSEGV信号;<br />
+				其他信号对应于内核或者其他用户进程中较高层的软件事件;<br />
+				如果当进程在前台运行时，你键人Ctrl+C(也就是同时按下Ctrl键和C键)，那么内核就会发送一个SIGINT信号(给这个前台进程组中的每个进程;<br />
+				一个进程可以通过向另一个进程发送一个SIGKII信号强制终止它;<br />
+				当一个子进程终止或者停止时，内核会发送一个SIGCHLI信号给父进程;<br />
+				
+				<h3>信号术语</h3>
+				<div>
+					传送一个信号到目的进程是由两个不同步骤组成的:<br /><br />
+					发送信号。内核通过更新目的进程上下文中的某个状态，发送(递送)一个信号给目的进程。发送信号可以有如下两种原因:<br />
+					    <li>内核检测到一个系统事件，比如除零错误或者子进程终止</li>
+					    <li>一个进程调用了kill函数，显式地要求内核发送一个信号给目的进程。一个进程可以发送信号给它自己</li>
+					接收信号。当目的进程被内核强迫以某种方式对信号的发送做出反应时，它就接收了信号。进程可以忽略这个信号，终止或者通过执行一个称为信号处理程序(signal han-dler)的用户层函数捕获这个信号。<br />
+					信号处理程序捕获信号的基本思想：接收到信号会触发控制转移到信号处理程序。在信号处理程序完成处理之后，它将控制返回给被中断的程序<br />
+					<img src="./res/3.png" />
+						<li>进程接收到信号</li>
+						<li>控制传递到信号处理程序</li>
+						<li>信号处理程序运行</li>
+						<li>信号处理程序返回到被中断进程的下一条指令</li>
+					一个发出而没有被接收的信号叫做待处理信号(pending signal)。在任何时刻，一种类型至多只会有一个待处理信号。如果一个进程有一个类型为k的待处理信号，那么任何接下来发送到这个进程的类型为k的信号都不会排队等待;
+					它们只是被简单地丢弃。一个进程可以有选择性地阻塞接收某种信号。当一种信号被阻塞时，它仍可以被发送，但是产生的待处理信号不会被接收，直到进程取消对这种信号的阻塞。<br />
+					一个待处理信号最多只能被接收一次。内核为每个进程在pending位向量中维护着待处理信号的集合，而在blocked位向量中维护着被阻塞的信号集合。只要传送了一个类型为k的信号，内核就会设置pending中的第k位，而只要接收
+					了一个类型为k的信号，内核就会清除pending中的第k位。
+				</div>
+				
+				<h3>发送信号</h3>
+				<div>
+					Unix系统提供了大量向进程发送信号的机制。所有这些机制都是基于进程组(process group)这个概念的。<br />
+					<h4>进程组</h4>
+					<div>
+						每个进程都只属于一个进程组，进程组是由一个正整数进程组ID来标识的。getpgrp函数返回当前进程的进程组ID:
+						<pre>
+							#include <unistd.h>
+							pid_t getpgrp(void);
+							返回:调用进程的进程组ID
+						</pre>
+						默认地，一个子进程和它的父进程同属于一个进程组。一个进程可以通过使用setpgid函数来改变自己或者其他进程的进程组:<br />
+						<pre>
+							#include <unistd.h>
+							int setpgid(pid_t pid,pid_t pgid)
+							返回:若成功则为0，若错误则为-1。
+						</pre>
+						setpgid函数将进程的进程组改为pgid。如果pid是0，那么就使用当前进程的PID。如果pgid是0，那么就用pid指定的进程的PID作为进程组ID。
+					</div>
+					
+					<h4>用/bin/kill程序发送信号</h4>
+					<div>
+						/bin/kill程序可以向另外的进程发送任意的信号。比如，命令<br>
+						    linux> /bin/kill -9 15213<br>
+						    发送信号9 (SIGKILL)给进程15213。<br>
+						一个为负的PID会导致信号被发送到进程组PID中的每个进程。比如，命令<br>
+						    linux> /bin/kill -9 -15213<br>
+						    发送一个SIGKILL信号给进程组15213中的每个进程。注意，在此我们使用完整路径/bin/kill，因为有些Unix shell有自己内置的kill命令。<br>
+						
+					</div>
+					
+					<h4>从键盘发送信号</h4>
+					<div>
+						Unix shell使用作业(job)这个抽象概念来表示为对一条命令行求值而创建的进程。在任何时刻，至多只有一个前台作业和0个或多个后台作业。比如，键入<br>
+						        linux> ls / sort<br>
+						会创建一个由两个进程组成的前台作业，这两个进程是通过Unix管道连接起来的:一个进程运行ls程序，另一个运行sort程序。shell为每个作业创建一个独立的进程组。进程组ID通常取自作业中父进程中的一个。<br>
+					</div>
+					
+					<h4>用kill函数发送信号</h4>
+					<div>
+						进程通过调用kill函数发送信号给其他进程(包括它们自己)<br />
+						<pre>
+							#include <sys/types.h>
+							#include <signal.h>
+							int kill(pid_t pid, int sig);
+							返回:若成功则为0，若错误则为-1。
+						</pre>
+						如果pid大于零，那么kill函数发送信号号码sig给进程pid。如果pid等于零，那么kill发送信号sig给调用进程所在进程组中的每个进程，包括调用进程自己。如果pid小于零，kill发送信号sig给进程组|pidl|(pid的绝对值)中
+						的每个进程。
+					</div>
+					
+					<h4>用alarm函数发送信号</h4>
+					<div>
+						进程可以通过调用alarm函数向它自己发送SIGALRM信号：
+						<pre>
+							#include <unistd.h>
+							unsigned int alarm(unsigned int sets);
+							返回:前一次闹钟剩余的秒数，若以前没有设定闹钟，则为0.
+						</pre>
+						alarm函数安排内核在sets秒后发送一个SIGALRM信号给调用进程。如果sets是零，那么不会调度安排新的闹钟(alarm)。在任何情况下，对alarm的调用都将取消任何待处理的(pending)闹钟，并且返回任何待处理的闹钟在被
+						发送前还剩下的秒数(如果这次对alarm的调用没有取消它的话);如果没有任何待处理的闹钟，就返回零。
+					</div>
+					
+				</div>
+				
+				<h3>接收信号</h3>
+				<div>
+					当内核把进程p从内核模式切换到用户模式时(例如，从系统调用返回或是完成了一次上下文切换)，它会检查进程p的未被阻塞的待处理信号的集合(pending &~blocked)。
+					如果这个集合为空(通常情况下)，那么内核将控制传递到p的逻辑控制流中的下一条指令(I<next>)。然而，如果集合是非空的，那么内核选择集合中的某个信号k(通常是最小的k),
+					并且强制p接收信号k。收到这个信号会触发进程采取某种行为。一旦进程完成了这个行为，那么控制就传递回p的逻辑控制流中的下一条指令(I<next>)。每个信号类型都有一个预
+					定义的默认行为，是下面中的一种:
+					<li>进程终止</li>
+					<li>进程终止并转储内存</li>
+					<li>进程停止(挂起)直到被SIGCONT信号重启</li>
+					<li>进程忽略该信号</li>
+					收到SIGKILI的默认行为就是终止接收进程。另外，接收到SIGCHLD的默认行为就是忽略这个信号。进程可以通过使用signal函数修改和信号相关联的默认行为。唯一的例外
+					是SIGSTOP和SIGKILL,它们的默认行为是不能修改的。
+					<pre>
+						#include <signal.h>
+						typedef void (*sighandler_t)(int);
+						sighandler_t signal(int signum, sighandler_t handler);
+						返回:若成功则为指向前次处理程序的指针，若出错则为SIG_ERR(不设置errno)。
+					</pre>
+					signal函数可以通过下列三种方法之一来改变和信号signum相关联的行为:<br />
+					<li>如果handler是SIG_IGN，那么忽略类型为signum的信号</li>
+					<li>如果handler是SIG_DFL，那么类型为signum的信号行为恢复为默认行为</li>
+					<li>否则，handler就是用户定义的函数的地址，这个函数被称为信号处理程序，只要进程接收到一个类型为signum的信号，就会调用这个程序。通过把处理程序的地址传递到signal函数从而改变默认行为，这叫做设置信号处理程序
+					(installing the handler)。调用信号处理程序被称为捕获信号。执行信号处理程序被称为处理信号</li>
+					当一个进程捕获了一个类型为k的信号时，会调用为信号k设置的处理程序，一个整数参数被设置为k。这个参数允许同一个处理函数捕获不同类型的信号。<br />
+					当处理程序执行它的return语句时，控制(通常)传递回控制流中进程被信号接收中断位置处的指令。我们说“通常”是因为在某些系统中，被中断的系统调用会立即返回一个错误。<br />
+					下面展示了一个程序，它捕获用户在键盘上输人Ctrl-C时发送的SIGINT信号。SIGINT的默认行为是立即终止该进程。在这个示例中，我们将默认行为修改为捕获信号，输出一条消息，然后终止该进程。<br />
+					<pre>
+						#include "csapp.h"
+						void sigint handler(int sig)/*SIGINT handler*/
+						{
+						    printf("Caught SIGINT!\n");
+						    exit (0);
+						}
+						int main()
+						{
+						    /*Install the SIGINT handler*/
+						    if (signal(SIGINT, sigint handler)==SIG_ERR)
+						        unix_error("signal error");
+						    pause();/*Wait for the receipt of a signal*/
+						    return 0;
+						}
+						一个用信号处理程序捕获SIUINT信号的程序
+					</pre>
+					
+					信号处理程序也可以被其他信号处理程序中断，如下图所示。主程序捕获到信号s，该信号会中断主程序，将控制转移到处理程序S, S在运行时，程序捕获信号t!=s，该信号会中断S，控制转移到处理程序T。
+					当T返回时，S从它被中断的地方继续执行。最后，S返回，控制传送回主程序，主程序从它被中断的地方继续执行：<br />
+					<img src="./res/4.png" />
+					
+				</div>
+				
+				
+				<h3>阻塞和解除阻塞信号</h3>
+				<div>
+					Linux提供阻塞信号的隐式和显式的机制:
+					隐式阻塞机制。内核默认阻塞任何当前处理程序正在处理信号类型的待处理的信号。
+					显式阻塞机制。应用程序可以使用sigprocmask函数和它的辅助函数，明确地阻塞和解除阻塞选定的信号。
+					<pre>
+						#include <signal.h>
+						int sigprocmask(int how, const sigset t *set，sigset_t *oldset);
+						int sigemptyset(sigset_t *set);
+						int sigfillset(sigset_t *set);
+						int sigaddset(sigset_t *set，int signum);
+						int sigdelset(sigset_t *set，int signum);
+						返回:如果成功则为0  若出错则为-1.
+						int sigismember(const sigset_t *set，int signum);
+						返回:若signum是set的成员则为1，如果不是则为0.若出错则为-1.
+					</pre>
+					sigprocmask函数改变当前阻塞的信号集合(blocked位向量)。具体的行为依赖于how的值:<br />
+					SIG_BLOCK:把set中的信号添加到blocked中(blocked=blocked | set).<br />
+					SIG_UNBLOCK:从blocked中删除set中的信号(blocked=blocked & set).<br />
+					SIG_SETMASK:block=set.<br />
+					如果oldset非空，那么blocked位向量之前的值保存在oldset中。<br /><br />
+					
+					使用下述函数对set信号集合进行操作:<br />
+					sigemptyset初始化set为空集合;<br />
+					sigfillset函数把每个信号都添加到set中;<br />
+					sigaddset函数把signum添加到set;<br />
+					sigdelset从set中删除signum;<br />
+					如果signum是set的成员，那么sigismember返回1，否则返回0。<br />
+					例如，下面代码展示了如何用sigprocmask来临时阻塞接收SIGINT信号。<br />
+					<pre>
+						sigset_t mask, prey_mask
+						Sigemptyset(&mask);
+						Sigaddset(&mask, SIGINT)
+						/*Block SIGINT and save previous blocked set*/
+						Sigprocmask(SIG_BLOCK, &mask，&prev_mask);
+						// Code region that will not be interrupted by SIGINT
+						/*Restore previous blocked set，unblocking SIGINT*/
+						Sigprocmask(SIG_SETMASK, &prev_mask, NULL);
+						临时阻塞接收一个信号
+					</pre>
+				</div>
+				
+				<h3>可移植的信号处理</h3>
+				<div>
+					Unix信号处理的另一个缺陷在于不同的系统有不同的信号处理语义。例如:<br />
+					    signal函数的语义各有不同。有些老的Unix系统在信号k被处理程序捕获之后就把对信号k的反应恢复到默认值。在这些系统上，每次运行之后，处理程序必须调用signal函数，显式地重新设置它自己。<br />
+					    系统调用可以被中断。像read、write和accept这样的系统调用潜在地会阻塞进程一段较长的时间，称为慢速系统调用。在某些较早版本的Unix系统中，当处理程序捕获到一个信号时，被中断的慢速系统调用在信号处理程序返回时
+						不再继续，而是立即返回给用户一个错误条件，并将errn。设置为EINTR。在这些系统上，程序员必须包括手动重启被中断的系统调用的代码。<br />
+					要解决这些问题，Posix标准定义了sigaction函数，它允许用户在设置信号处理时，明确指定他们想要的信号处理语义。
+					<pre>
+						#include <signal.h>
+						int sigaction(int signum,  struct sigaction *act, struct sigaction *oldact);
+						返回:若成功则为0，若出错则为-1
+					</pre>
+
+				</div>
+				
+			</div>
 			
+			<h2>非本地跳转</h2>
+			<div>
+				C语言提供了一种用户级异常控制流形式，称为非本地跳转(nonlocal jump)，它将控制直接从一个函数转移到另一个当前正在执行的函数，而不需要经过正常的调用——返回序列。非本地跳转是通过。etjmp和longjmp函数来提供的。
+				<pre>
+					#include <setjmp.h>
+					int setjmp(jmp_buf env);
+					int sigsetjmp(sigjmp_buf env, int savesigs);
+					返回:setjmp返回0, longjmp返回非零。
+				</pre>
+				setjmp函数在env缓冲区中保存当前调用环境，以供后面的longjmp使用，并返回0。调用环境包括程序计数器、栈指针和通用目的寄存器。setjmp返回的值不能被赋值给变量:
+				rc = setjmp(env);/*Wrong!*/
+				不过它可以安全地用在switch或条件语句的测试中。
+				<pre>
+					#include <setjmp.h>
+					void longjmp(jmp_buf env, int retval);
+					void siglongjmp(sigjmp_buf env, int retval);
+					从不返回。
+				</pre>
+				longjmp函数从env缓冲区中恢复调用环境，然后触发一个从最近一次初始化env的setjmp调用的返回。然后setjmp返回，并带有非零的返回值retval。<br />
+				    setjmp和longjmp之间的相互关系令人迷惑。setjmp函数只被调用一次，但返回多次:一次是当第一次调用setjmp，而调用环境保存在缓冲区env中时，一次是
+				为每个相应的longjmp调用。另一方面，longjmp函数被调用一次，但从不返回。<br />
+				    非本地跳转的一个重要应用就是允许从一个深层嵌套的函数调用中立即返回，通常是由检测到某个错误情况引起的。如果在一个深层嵌套的函数调用中发现了一个错误情况，我
+				们可以使用非本地跳转直接返回到一个普通的本地化的错误处理程序，而不是费力地解开调用栈。<br />
+				    调用中分配了某些数据结构，本来预期在函数结尾处释放它们，那么这些释放代码会被跳过，因而会产生内存泄漏。<br />
+				    非本地跳转的另一个重要应用是使一个信号处理程序分支到一个特殊的代码位置，而不是返回到被信号到达中断了的指令的位置。<br />
+			</div>
+			<h2>小结</h2>
+			<div>
+				异常控制流(ECF)发生在计算机系统的各个层次，是计算机系统中提供并发的基本机制。<br />
+				    在硬件层，异常是由处理器中的事件触发的控制流中的突变。控制流传递给一个软件处理程序，该处理程序进行一些处理，然后返回控制给被中断的控制流。<br />
+				    有四种不同类型的异常:中断、故障、终止和陷阱。当一个外部I/O设备(例如定时器芯片或者磁盘控制器)设置了处理器芯片上的中断管脚时，(对于任意指令)中断会异步地发生。
+				控制返回到故障指令后面的那条指令。一条指令的执行可能导致故障和终止同步发生。故障处理程序会重新启动故障指令，而终止处理程序从不将控制返回给被中断的流。最后，陷
+				阱就像是用来实现向应用提供到操作系统代码的受控的人口点的系统调用的函数调用。<br />
+				    在操作系统层，内核用ECF提供进程的基本概念。进程提供给应用两个重要的抽象:1)逻辑控制流，它提供给每个程序一个假象，好像它是在独占地使用处理器，2)私有地址空
+				间，它提供给每个程序一个假象，好像它是在独占地使用主存。<br />
+				    在操作系统和应用程序之间的接口处，应用程序可以创建子进程，等待它们的子进程停止或者终止，运行新的程序，以及捕获来自其他进程的信号。信号处理的语义是微妙的，
+				并且随系统不同而不同。然而，在与Posix兼容的系统上存在着一些机制，允许程序清楚地指定期望的信号处理语义。<br />
+				    最后，在应用层，C程序可以使用非本地跳转来规避正常的调用/返回栈规则，并且直接从一个函数分支到另一个函数。<br />
+			</div>
 		</div>
 		    
 	</body>
